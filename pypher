@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+import os
+from pypher_mod import *
+import argparse
+import textwrap
+#
+#
+#
+#
+u_inp = user_input()  # u_inp is an instance of the user_input class in the pypher_mod module file
+#
+#
+
+descript = textwrap.wrap("""Encode (-e) or decode(-d) text by shifting characters a specified number of positions(-n N)
+             in a specified direction(-l|-r)""", width=50)
+
+descript_form = "\n{title:}\n{pad:6}{d[0]:50}\n{pad:6}{d[1]:50}\n{pad:6}{d[2]:50}\n".format(title="Pypher : a substitution cipher implementation", pad="", d=descript)
+
+usage_form = "\n{pad:5}pypher [options]\n{pad:12}(-e|-d) (-l|-r) -n=N -i=INPUT [-o=FILE]\n{pad:12}-h,--help".format(pad="")
+
+
+
+#get a parser object
+parser = argparse.ArgumentParser(prog='PROG',             
+                                 description=descript_form,
+                                 usage=usage_form,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter) # this raw class makes it so that your format is kept and new lines aren't stripped
+
+
+#by default, argparse splits arguments into two groups - positional arguments and optional arguments, and that's the title that's used in the help output
+#Below is a way to change the title of the 'Optional arguments group' (which I only have the --help option in)
+parser._optionals.title = 'Get help' # the 'optional arguments' group in the help output will now appeared as being titled 'get help'
+
+
+
+options = parser.add_argument_group(title='Options')  # add all the arguments to a different group, so as to modify the 'optional arguments' standard display text
+
+#flags : these don't take arguments of their own, but act merely as boolean switches
+
+# --encode and --decode are mutually exclusive
+exclude_en_de = options.add_mutually_exclusive_group(required=True)  # create a mutually exclusive group, with at least one option required
+exclude_en_de.add_argument('-e', '--encode',
+                           dest="encode",
+                           action="store_true",
+                           help="encode some text") 
+
+exclude_en_de.add_argument('-d', '--decode',
+                           dest="decode",
+                           action="store_true",
+                           help="decode some text")
+
+
+# --left and --right are mutually exclusive too
+exclude_dir = options.add_mutually_exclusive_group(required=True)  # create another mutually exclusive group for these two as well
+
+exclude_dir.add_argument('-l', '--left',
+                         dest="left",
+                         action="store_true",
+                         help="shift characters to the left")
+
+exclude_dir.add_argument('-r', '--right',
+                         dest="right",
+                         action="store_true",
+                         help="shift characters to the right") 
+
+
+number_help = """shift each character N characters 
+               to the left or to the right, 
+               as set by the -l or -r switches"""
+
+options.add_argument('-n', '--number',
+                    metavar="N",
+                    dest="number",
+                    type=int,
+                    action="store",
+                    help=number_help,
+                    required="yes")
+
+
+
+input_help= """read text to encode/decode from INPUT, 
+             which can be either a string or a filename"""
+
+options.add_argument('-i', '--input-from',
+                    metavar="INPUT",
+                    dest="input",
+                    help=input_help,
+                    required='yes')
+
+
+
+output_help = "[OPTIONAL] redirect the result to FILE, else to stdout if omitted"
+
+options.add_argument('-o', '--output-to',
+                    metavar="FILE",
+                    dest="output",
+                    help=output_help)
+#
+#
+#
+#    
+args = parser.parse_args()
+#print(args)
+# print(args.input)
+# something = open('newfile', mode='r').read()
+# print(something)
+# #
+
+#
+
+
+u_inp.encode_or_decode_var = 'encode' if args.encode == True else 'decode'
+u_inp.shift_direction_var = 'left' if args.left ==  True else 'right'
+u_inp.offset = args.number
+
+
+
+
+
+try:
+    handle = open(args.input, mode='r')
+    u_inp.input_text_case_intact = handle.read()
+    u_inp.input_text_var = u_inp.input_text_case_intact.lower()
+#    print(u_inp.input_text_case_intact)
+
+except:
+    #print('exception')
+    u_inp.input_text_case_intact = str(args.input)
+    u_inp.input_text_var = str(args.input)
+
+
+# #
+#
+#
+#########################################################################################################################################
+# #
+
+#I can't put these functions in the module file because they compute variables that are obtained at runtime, only after the module is imported
+
+#this should process the whole thing according to the variables, so as not to have 4 situations below anymore
+def process():
+    if u_inp.encode_or_decode_var == 'encode':
+        enc = encoder(u_inp.shift_direction_var, u_inp.offset, u_inp.input_text_var)
+        enc.left_shift() if u_inp.shift_direction_var == 'left' else enc.right_shift()
+    else:
+        dec = decoder(u_inp.shift_direction_var, u_inp.offset, u_inp.input_text_var)
+        dec.left_shift() if u_inp.shift_direction_var == 'left' else dec.right_shift()
+    
+
+#this computes the initial message before the actual encoded/decoded text; it reports the shift direction and amount, and whether the text that follows
+#was encoded or decoded
+def get_message():
+    enc_or_dec = 'ENCODED' if u_inp.encode_or_decode_var == 'encode' else 'DECODED'
+    direction = 'LEFT' if u_inp.shift_direction_var == 'left' else 'RIGHT'
+    offs = u_inp.offset
+    
+    message = "{} using a {} shift of ---{}---".format(enc_or_dec, direction, offs)
+    print("\n{padding}{filler:.>{width}}\n{padding}|{msg}|\n{padding}{filler:.>{width}}".format(filler='',
+                                                                                                msg=message, 
+                                                                                                width=len(message)+2, 
+                                                                                                padding='   '))
+
+
+##################################################################################
+#function that when called will compute and format the output for each sceneario: left/right encoding/decoding.
+##############################################################################
+
+def make_pretty(output=None):        #output should be taken from args.output. If it's not stdout - the default, and it's a file, write to file, without pretty output 
+  #if u_inp.maintain_case_var in ['1', 'maintain']: # left to do: implement maintain case vs --case-insensitive
+  #as it stands, for the time being, I'll just leave it as it is: i.e. have all text maintain case
+  #print('maintain')
+
+
+   #compose the 'enc.left_shift_encoded' - type argument to case_restorer() dynamically, depending on the variables
+    if u_inp.encode_or_decode_var == 'encode':
+        enc = encoder(u_inp.shift_direction_var, u_inp.offset, u_inp.input_text_var)
+        en_de_f = enc.left_shift_encoded if u_inp.shift_direction_var == 'left' else enc.right_shift_encoded
+    else:
+        dec = decoder(u_inp.shift_direction_var, u_inp.offset, u_inp.input_text_var)
+        en_de_f = dec.left_shift_decoded if u_inp.shift_direction_var == 'left' else dec.right_shift_decoded
+
+    #this is the final text to be printed, but not yet 'prettified'
+    text_to_print = case_restorer(u_inp.input_text_case_intact,
+                                  en_de_f)
+                                  #get the encoded text
+                                  #all 4 lines before the "text_to_print" line are only so as figure out what argument case_restorer()needs.
+
+
+    if output == None:
+
+        res_list=[] #the purpose of this step is to make sure no lines have more than 90 characters, which would break the output.
+
+        for i in text_to_print.split("\n"):  # get a list of strings split by newline characters
+            if len(i) <= 88:
+                res_list.append(i)  # if the line is shorter than 90 character, append it to the line directly
+            elif len(i) > 88:   # if the line is longer than 90 characters, wrap it using textrap.wrap. and then append the resulting pieces to res_list
+                [res_list.append(x) for x in textwrap.wrap(i, width=88)]  #textwrap.wrap will take one line and make 
+                                                          #two (or more), if the line > 90 characters, and return them as a list                                
+
+        for i in res_list:  #this is the final output
+            print("{sign:>8}{padding:2}{text:90}{padding:2}{sign:1}".format(text = i, sign='|', padding=''))
+        print("{sign:>8}{:_^94}{sign:<1}".format("", sign='|'))
+
+
+
+    else:
+        if os.path.exists(args.output):
+            print('finished writing to', args.output)
+        else:
+            print('file nonexistent, creating it')
+            print('finished writing to', args.output)
+
+
+        try:
+            writeto = open(args.output, mode='w')
+            writeto.write(text_to_print)  # text_to_print is the 'unprettified' text
+        except:
+            print('Fatal: couldn\'t write to', args.output)
+        
+            
+#my first take was the below, but it's not the right way to go about it; there will never be an exception, since python automatically creates the file if it doesn't exist, so instead I took the route above
+    #     try:
+    #         writeto = open(args.output, mode='w')
+    #         writeto.write(text_to_print)  # text_to_print is the 'unprettified' text
+    #         print('finished writing to', args.output)
+    #     except:
+    #         print('file nonexistent, creating it')
+    #         print('finished writing to', args.output)
+            
+    # #########################################################################################
+#this is the actual process: 
+if not args.output:             # if args.output == None
+    process()                       # execute the process() function, which calls what's needed does the 'encryption' or 'decryption'
+    get_message()                   # this computes the initial message, as mentioned above (mentioned under its definition)
+    make_pretty(args.output)                   # this takes the output of process() and has them displayed nicely
+
+else:
+    process()
+    make_pretty(args.output)
